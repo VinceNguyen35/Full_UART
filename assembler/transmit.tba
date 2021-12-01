@@ -1,0 +1,190 @@
+; Vince Nguyen
+; CECS 460
+; Project 3 UART Transmit Engine
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Declarations of all constants using equates: EQU
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+POINT   	EQU    	R0
+COUNTER 	EQU    	R1
+VALUE   	EQU    	R2
+LEDS    	EQU    	R3
+DELAY_COUNT1	EQU	R4
+DELAY_COUNT2	EQU	R5
+COUNTER   	EQU    	R6
+ZEROS   	EQU    	0000
+ONE     	EQU    	0001
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Initialization code - tasks to accomplish before program runs
+; This sets up the string to be displayed on a terminal
+; "CSULB CECS 460 - [COUNT]"
+; COUNT is initialized as 00000
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+INIT    LOAD   	POINT, ZEROS       ;point to scratch ram
+        LOAD   	VALUE, 0043
+        STORE  	VALUE, POINT       ;C
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0053
+        STORE  	VALUE, POINT       ;S
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0055  
+        STORE  	VALUE, POINT       ;U
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 004C
+        STORE  	VALUE, POINT       ;L
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0042  
+        STORE  	VALUE, POINT       ;B
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0020
+        STORE  	VALUE, POINT       ;Space
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0043
+        STORE  	VALUE, POINT       ;C
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0045
+        STORE  	VALUE, POINT       ;E
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0043
+        STORE  	VALUE, POINT       ;C
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0053
+        STORE  	VALUE, POINT       ;S
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0020  
+        STORE  	VALUE, POINT       ;Space
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0034
+        STORE  	VALUE, POINT       ;4
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0036
+        STORE 	VALUE, POINT       ;6
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0030
+        STORE  	VALUE, POINT       ;0
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0020
+        STORE  	VALUE, POINT       ;Space
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 002D
+        STORE  	VALUE, POINT       ;-
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0020
+        STORE  	VALUE, POINT       ;Space
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 005B
+        STORE  	VALUE, POINT       ;[
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0030	   ;At location 0012
+        STORE  	VALUE, POINT       ;0
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0030	   ;At location 0013
+        STORE  	VALUE, POINT       ;0
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0030	   ;At location 0014
+        STORE  	VALUE, POINT       ;0
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0030	   ;At location 0015
+        STORE  	VALUE, POINT       ;0
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 0030	   ;At location 0016
+        STORE  	VALUE, POINT       ;0
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 005D
+        STORE  	VALUE, POINT       ;]
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 000D
+        STORE  	VALUE, POINT       ;CR
+        ADD    	POINT, ONE
+        LOAD   	VALUE, 000A	   ;At location 0019
+        STORE  	VALUE, POINT       ;LF
+
+        LOAD   	POINT, 		ZEROS
+	LOAD   	VALUE, 		ZEROS
+	LOAD	DELAY_COUNT1,	ZEROS
+	LOAD	DELAY_COUNT2,	ZEROS
+	LOAD	LEDS,  		ONE
+START	ENINT
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Main Loop comprised of routine calls with jump back to main
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+MAIN    OUTPUT	LEDS,	 0002	;output at reg port 0x02
+	RL	LEDS
+	CALL	DELAY
+	CALL	DELAY
+	JUMP	MAIN
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Delay	-	Generates a 0.01s delay
+;		Assumes 100MHz clock
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	
+DELAY	ADD     DELAY_COUNT1, 0001   ; add 1 to DELAY_COUNT1
+        ADDC    DELAY_COUNT2, 0000   ; C==DELAY_COUNT1 rolls from FFFF -> 0000
+        COMP    DELAY_COUNT2, 000F   ; check if at the end of delay
+        JUMPNZ  DELAY                ; if not -> keep counting
+        LOAD    DELAY_COUNT1, 0000   ; else -> reset counts and return
+        LOAD    DELAY_COUNT2, 0000
+        RETURN
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Interrupt service routine - when TXRDY is induced
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+ISR     COMP    POINT, 	0012         	; check if at point to show count
+        CALLZ   BINTOASCII         	; if yes -> call conversion subroutine
+        FETCH   VALUE,	POINT         	; fetch the current character
+        OUTPUT  VALUE,	0000            ; output the character
+        COMP    POINT, 	0019         	; are we at the end of the string
+        JUMPNZ  INCPOINT           	; if not -> keep going
+        LOAD    POINT, 	0000         	; else reset the pointer
+        RETEN
+
+INCPOINT
+	ADD	POINT,	ONE
+	RETEN
+
+BINTOASCII
+	LOAD	RE, 		COUNTER    ;COUNTER keeps count
+	LOAD	RD,   		2710	   ;2710h = 10000d
+	CALL	FINDIT
+	ADD	RB, 		0030	   ;add 0030 for ascii value
+	STORE	RB, 		0012	   ;store for 10000d
+	LOAD	RD,   		03E8	   ;03E8h = 1000d
+	CALL	FINDIT
+	ADD	RB, 		0030	   ;add 0030 for ascii value
+	STORE	RB, 		0013	   ;store for 1000d
+	LOAD	RD,   		0064	   ;0064h = 100d
+	CALL	FINDIT
+	ADD	RB, 		0030	   ;add 0030 for ascii value
+	STORE	RB, 		0014	   ;store for 100d
+	LOAD	RD,   		000A	   ;000Ah = 10d
+	CALL	FINDIT
+	ADD	RB, 		0030	   ;add 0030 for ascii value
+	STORE	RB, 		0015	   ;store for 10d
+	ADD	RE,		0030	   ;add 0030 for ascii value
+	STORE	RE,		0016	   ;store for 1d
+
+	ADD	COUNTER,	ONE
+	RETURN
+
+FINDIT	LOAD	RB, 	ZEROS	   ;count = 0
+NO	SUB	RE,	RD
+	JUMPC	YES		   ;if yes then count is done
+	ADD	RB, 	ONE	   ;if not keep going
+	JUMP	NO
+YES	ADD	RE,	RD	   ;restore last value
+	RETURN
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Vector to Interrupt Service Routine - NO CHANGES HERE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+        address 0FFE
+        JUMP    ISR
+
+        END

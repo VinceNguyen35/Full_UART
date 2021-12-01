@@ -1,0 +1,319 @@
+               ; Vince Nguyen
+               ; CECS 460
+               ; Project 3 UART Transmit Engine
+               
+               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+               ; Declarations of all constants using equates: EQU
+               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+               
+               POINT   	EQU    	R0
+               COUNTER 	EQU    	R1
+               VALUE   	EQU    	R2
+               LEDS    	EQU    	R3
+               DELAY_COUNT1	EQU	R4
+               DELAY_COUNT2	EQU	R5
+               COUNTER   	EQU    	R6
+               ZEROS   	EQU    	0000
+               ONE     	EQU    	0001
+               
+               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+               ; Initialization code - tasks to accomplish before program runs
+               ; This sets up the string to be displayed on a terminal
+               ; "CSULB CECS 460 - [COUNT]"
+               ; COUNT is initialized as 00000
+               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+               
+               INIT    LOAD   	POINT, ZEROS       ;point to scratch ram
+0000 AE00 0000
+                       LOAD   	VALUE, 0043
+0002 AE02 0043
+                       STORE  	VALUE, POINT       ;C
+7602
+                       ADD    	POINT, ONE
+0005 8200 0001
+                       LOAD   	VALUE, 0053
+0007 AE02 0053
+                       STORE  	VALUE, POINT       ;S
+7602
+                       ADD    	POINT, ONE
+000A 8200 0001
+                       LOAD   	VALUE, 0055  
+000C AE02 0055
+                       STORE  	VALUE, POINT       ;U
+7602
+                       ADD    	POINT, ONE
+000F 8200 0001
+                       LOAD   	VALUE, 004C
+0011 AE02 004C
+                       STORE  	VALUE, POINT       ;L
+7602
+                       ADD    	POINT, ONE
+0014 8200 0001
+                       LOAD   	VALUE, 0042  
+0016 AE02 0042
+                       STORE  	VALUE, POINT       ;B
+7602
+                       ADD    	POINT, ONE
+0019 8200 0001
+                       LOAD   	VALUE, 0020
+001B AE02 0020
+                       STORE  	VALUE, POINT       ;Space
+7602
+                       ADD    	POINT, ONE
+001E 8200 0001
+                       LOAD   	VALUE, 0043
+0020 AE02 0043
+                       STORE  	VALUE, POINT       ;C
+7602
+                       ADD    	POINT, ONE
+0023 8200 0001
+                       LOAD   	VALUE, 0045
+0025 AE02 0045
+                       STORE  	VALUE, POINT       ;E
+7602
+                       ADD    	POINT, ONE
+0028 8200 0001
+                       LOAD   	VALUE, 0043
+002A AE02 0043
+                       STORE  	VALUE, POINT       ;C
+7602
+                       ADD    	POINT, ONE
+002D 8200 0001
+                       LOAD   	VALUE, 0053
+002F AE02 0053
+                       STORE  	VALUE, POINT       ;S
+7602
+                       ADD    	POINT, ONE
+0032 8200 0001
+                       LOAD   	VALUE, 0020  
+0034 AE02 0020
+                       STORE  	VALUE, POINT       ;Space
+7602
+                       ADD    	POINT, ONE
+0037 8200 0001
+                       LOAD   	VALUE, 0034
+0039 AE02 0034
+                       STORE  	VALUE, POINT       ;4
+7602
+                       ADD    	POINT, ONE
+003C 8200 0001
+                       LOAD   	VALUE, 0036
+003E AE02 0036
+                       STORE 	VALUE, POINT       ;6
+7602
+                       ADD    	POINT, ONE
+0041 8200 0001
+                       LOAD   	VALUE, 0030
+0043 AE02 0030
+                       STORE  	VALUE, POINT       ;0
+7602
+                       ADD    	POINT, ONE
+0046 8200 0001
+                       LOAD   	VALUE, 0020
+0048 AE02 0020
+                       STORE  	VALUE, POINT       ;Space
+7602
+                       ADD    	POINT, ONE
+004B 8200 0001
+                       LOAD   	VALUE, 002D
+004D AE02 002D
+                       STORE  	VALUE, POINT       ;-
+7602
+                       ADD    	POINT, ONE
+0050 8200 0001
+                       LOAD   	VALUE, 0020
+0052 AE02 0020
+                       STORE  	VALUE, POINT       ;Space
+7602
+                       ADD    	POINT, ONE
+0055 8200 0001
+                       LOAD   	VALUE, 005B
+0057 AE02 005B
+                       STORE  	VALUE, POINT       ;[
+7602
+                       ADD    	POINT, ONE
+005A 8200 0001
+                       LOAD   	VALUE, 0030	   ;At location 0012
+005C AE02 0030
+                       STORE  	VALUE, POINT       ;0
+7602
+                       ADD    	POINT, ONE
+005F 8200 0001
+                       LOAD   	VALUE, 0030	   ;At location 0013
+0061 AE02 0030
+                       STORE  	VALUE, POINT       ;0
+7602
+                       ADD    	POINT, ONE
+0064 8200 0001
+                       LOAD   	VALUE, 0030	   ;At location 0014
+0066 AE02 0030
+                       STORE  	VALUE, POINT       ;0
+7602
+                       ADD    	POINT, ONE
+0069 8200 0001
+                       LOAD   	VALUE, 0030	   ;At location 0015
+006B AE02 0030
+                       STORE  	VALUE, POINT       ;0
+7602
+                       ADD    	POINT, ONE
+006E 8200 0001
+                       LOAD   	VALUE, 0030	   ;At location 0016
+0070 AE02 0030
+                       STORE  	VALUE, POINT       ;0
+7602
+                       ADD    	POINT, ONE
+0073 8200 0001
+                       LOAD   	VALUE, 005D
+0075 AE02 005D
+                       STORE  	VALUE, POINT       ;]
+7602
+                       ADD    	POINT, ONE
+0078 8200 0001
+                       LOAD   	VALUE, 000D
+007A AE02 000D
+                       STORE  	VALUE, POINT       ;CR
+7602
+                       ADD    	POINT, ONE
+007D 8200 0001
+                       LOAD   	VALUE, 000A	   ;At location 0019
+007F AE02 000A
+                       STORE  	VALUE, POINT       ;LF
+7602
+               
+                       LOAD   	POINT, 		ZEROS
+0082 AE00 0000
+               	LOAD   	VALUE, 		ZEROS
+0084 AE02 0000
+               	LOAD	DELAY_COUNT1,	ZEROS
+0086 AE04 0000
+               	LOAD	DELAY_COUNT2,	ZEROS
+0088 AE05 0000
+               	LOAD	LEDS,  		ONE
+008A AE03 0001
+               START	ENINT
+008C 1E00               
+               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+               ; Main Loop comprised of routine calls with jump back to main
+               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+               
+               MAIN    OUTPUT	LEDS,	 0002	;output at reg port 0x02
+008D B803 0002
+               	RL	LEDS
+008F 4803
+               	CALL	DELAY
+0090 8E00 0096
+               	CALL	DELAY
+0092 8E00 0096
+               	JUMP	MAIN
+0094 A400 008d
+               
+               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+               ; Delay	-	Generates a 0.01s delay
+               ;		Assumes 100MHz clock
+               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+               	
+               DELAY	ADD     DELAY_COUNT1, 0001   ; add 1 to DELAY_COUNT1
+0096 8204 0001
+                       ADDC    DELAY_COUNT2, 0000   ; C==DELAY_COUNT1 rolls from FFFF -> 0000
+0098 8605 0000
+                       COMP    DELAY_COUNT2, 000F   ; check if at the end of delay
+009A 9805 000F
+                       JUMPNZ  DELAY                ; if not -> keep counting
+009C AC00 0096
+                       LOAD    DELAY_COUNT1, 0000   ; else -> reset counts and return
+009E AE04 0000
+                       LOAD    DELAY_COUNT2, 0000
+00A0 AE05 0000
+                       RETURN
+00A2 3A00               
+               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+               ; Interrupt service routine - when TXRDY is induced
+               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+               
+               ISR     COMP    POINT, 	0012         	; check if at point to show count
+00A3 9800 0012
+                       CALLZ   BINTOASCII         	; if yes -> call conversion subroutine
+00A5 9400 00b4
+                       FETCH   VALUE,	POINT         	; fetch the current character
+7202
+                       OUTPUT  VALUE,	0000            ; output the character
+00A8 B802 0000
+                       COMP    POINT, 	0019         	; are we at the end of the string
+00AA 9800 0019
+                       JUMPNZ  INCPOINT           	; if not -> keep going
+00AC AC00 00b1
+                       LOAD    POINT, 	0000         	; else reset the pointer
+00AE AE00 0000
+                       RETEN
+00B0 4600               
+               INCPOINT
+               	ADD	POINT,	ONE
+00B1 8200 0001
+               	RETEN
+00B3 4600               
+               BINTOASCII
+               	LOAD	RE, 		COUNTER    ;COUNTER keeps count
+306E
+               	LOAD	RD,   		2710	   ;2710h = 10000d
+00B5 AE0D 2710
+               	CALL	FINDIT
+00B7 8E00 00dc
+               	ADD	RB, 		0030	   ;add 0030 for ascii value
+00B9 820B 0030
+               	STORE	RB, 		0012	   ;store for 10000d
+00BB F40B 0012
+               	LOAD	RD,   		03E8	   ;03E8h = 1000d
+00BD AE0D 03E8
+               	CALL	FINDIT
+00BF 8E00 00dc
+               	ADD	RB, 		0030	   ;add 0030 for ascii value
+00C1 820B 0030
+               	STORE	RB, 		0013	   ;store for 1000d
+00C3 F40B 0013
+               	LOAD	RD,   		0064	   ;0064h = 100d
+00C5 AE0D 0064
+               	CALL	FINDIT
+00C7 8E00 00dc
+               	ADD	RB, 		0030	   ;add 0030 for ascii value
+00C9 820B 0030
+               	STORE	RB, 		0014	   ;store for 100d
+00CB F40B 0014
+               	LOAD	RD,   		000A	   ;000Ah = 10d
+00CD AE0D 000A
+               	CALL	FINDIT
+00CF 8E00 00dc
+               	ADD	RB, 		0030	   ;add 0030 for ascii value
+00D1 820B 0030
+               	STORE	RB, 		0015	   ;store for 10d
+00D3 F40B 0015
+               	ADD	RE,		0030	   ;add 0030 for ascii value
+00D5 820E 0030
+               	STORE	RE,		0016	   ;store for 1d
+00D7 F40E 0016
+               
+               	ADD	COUNTER,	ONE
+00D9 8206 0001
+               	RETURN
+00DB 3A00               
+               FINDIT	LOAD	RB, 	ZEROS	   ;count = 0
+00DC AE0B 0000
+               NO	SUB	RE,	RD
+5EDE
+               	JUMPC	YES		   ;if yes then count is done
+00DF A600 00e5
+               	ADD	RB, 	ONE	   ;if not keep going
+00E1 820B 0001
+               	JUMP	NO
+00E3 A400 00de
+               YES	ADD	RE,	RD	   ;restore last value
+04DE
+               	RETURN
+00E6 3A00               
+               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+               ; Vector to Interrupt Service Routine - NO CHANGES HERE
+               ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                       address 0FFE
+                       JUMP    ISR
+0FFE A400 00a3
+               
+                       END

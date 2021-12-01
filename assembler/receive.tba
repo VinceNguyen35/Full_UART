@@ -1,0 +1,791 @@
+;****************************************************************************//
+;  File Name: 	receive.tba                                                 
+;  Project:	CECS 460 Project 4: Full UART                                                                                                             
+;  Created by Vince Nguyen on May 11, 2020                                  
+;  Copyright © 2020 Vince Nguyen.  All rights reserved.                                                                                          
+;  In submitting this file for class work at CSULB I am confirming that this   
+;  is my work and the work of no one else.  In submitting this code I          
+;  acknowledge that plagiarism in student project work is subject to dismissal 
+;  from the class.                                                             
+;****************************************************************************//
+
+ASCII_null     EQU   0000
+ASCII_BS       EQU   0008  ; Back Space
+ASCII_LF       EQU   000A  ; <LF> Line Feed
+ASCII_CR       EQU   000D  ; <CR> Carriage return
+ASCII_aster    EQU   002A  ; '*'  asterisk
+ASCII_AT       EQU   0040  ; '@'  at
+ASCII_DOT      EQU   002E  ; '.'  period
+ASCII_EQ       EQU   003D  ; '='  equal
+ASCII_DASH     EQU   002D  ; '-'  dash
+ASCII_COL      EQU   003A  ; ':'  colon
+ASCII_SP       EQU   0020  ; ' '  space
+ASCII_comma    EQU   002C  ; ','  comma
+ASCII_0        EQU   0030
+ASCII_1        EQU   0031
+ASCII_2        EQU   0032
+ASCII_3        EQU   0033
+ASCII_4        EQU   0034
+ASCII_5        EQU   0035
+ASCII_6        EQU   0036
+ASCII_7        EQU   0037
+ASCII_8        EQU   0038
+ASCII_9        EQU   0039
+ASCII_A        EQU   0041
+ASCII_B        EQU   0042
+ASCII_C        EQU   0043
+ASCII_D        EQU   0044
+ASCII_E        EQU   0045
+ASCII_F        EQU   0046
+ASCII_G        EQU   0047
+ASCII_H        EQU   0048
+ASCII_I        EQU   0049
+ASCII_J        EQU   004A
+ASCII_K        EQU   004B
+ASCII_L        EQU   004C
+ASCII_M        EQU   004D
+ASCII_N        EQU   004E
+ASCII_O        EQU   004F
+ASCII_P        EQU   0050
+ASCII_Q        EQU   0051
+ASCII_R        EQU   0052
+ASCII_S        EQU   0053
+ASCII_T        EQU   0054
+ASCII_U        EQU   0055
+ASCII_V        EQU   0056
+ASCII_W        EQU   0057
+ASCII_X        EQU   0058
+ASCII_Y        EQU   0059
+ASCII_Z        EQU   005A
+forty          EQU   0028
+; --------------------------
+;     Scratchpad Addresses
+; --------------------------
+start_banner    EQU     0000
+end_banner      EQU     0098
+
+start_prompt    EQU     0098
+end_prompt      EQU     00A4
+
+start_hometown  EQU     00A4
+end_hometown    EQU     00BD
+
+start_bs        EQU     00BD
+end_bs          EQU     00C0
+
+start_crlf      EQU     00C0
+end_crlf        EQU     00C2
+
+COUNT_BEGIN     EQU     00C2
+COUNT_TEN       EQU     00C2
+COUNT_ONE       EQU     00C3
+COUNT_END       EQU     00C4
+
+
+TEMP            EQU     R0
+POINTER         EQU     R3
+STATUS          EQU     R1
+DATA            EQU     R2
+LEDS            EQU     R4
+
+CASE   EQU RC
+
+CHAR_COUNT EQU RD
+
+DELAY_COUNT1    EQU     R5
+DELAY_COUNT2    EQU     R6
+
+
+
+Init
+        ; initialize registers to 0
+        LOAD    TEMP,           0000
+        LOAD    POINTER,        0000
+        LOAD    CHAR_COUNT,     0000
+        LOAD    STATUS,         0000
+        LOAD    DATA,           0000
+        ; case is initialized to 1 because
+        ; the banner is to print at startup
+        LOAD    CASE,           0001
+
+
+        LOAD    DELAY_COUNT1,   0000
+        LOAD    DELAY_COUNT2    0000
+        LOAD    LEDS,           0001
+
+        CALL    initialize_banner   ; load the necessary chars for header in scratchRam
+        CALL    initialize_prompt   ; load necessary chars for prompt
+        CALL    initialize_hometown
+        CALL    initialize_backspace
+        CALL    initialize_crlf
+
+        LOAD    POINTER, 0000            ; reset the pointer to 0
+
+        ENINT
+
+
+
+Main
+        OUTPUT  LEDS, 0002      ; output to port 0002
+        RL      LEDS            ; shift LED left
+        CALL    Delay           ; wait .01
+        CALL    Delay           ; wait .01
+        JUMP    Main
+
+
+Delay
+        ADD     DELAY_COUNT1, 0001   ; add 1 to DELAY_COUNT1
+        ADDC    DELAY_COUNT2, 0000   ; DELAY_COUNT1 rolls from FFFF -> 0000
+        COMP    DELAY_COUNT2, 000F   ; check if at the end of delay
+        JUMPNZ  Delay                ; if not -> keep counting
+        LOAD    DELAY_COUNT1, 0000   ; else -> reset counts and return
+        LOAD    DELAY_COUNT2, 0000
+        RETURN
+
+
+        ADDRESS 0300
+ISR
+        INPUT   STATUS, 0001
+        AND     STATUS, 0003
+
+        COMP    STATUS, 0003
+        JUMPZ   GOT_BOTH
+
+        COMP    STATUS, 0002        ; check if TXRDY is high
+        CALLZ   GOT_TXRDY
+
+        COMP    STATUS, 0001        ; check if RXRDY is high
+        CALLZ   GOT_RXRDY
+
+        RETEN
+
+GOT_BOTH
+
+        CALL GOT_TXRDY
+        CALL GOT_RXRDY
+        RETEN
+
+BINARY_TO_ASCII
+        LOAD    RE, CHAR_COUNT    ; load RE with counter
+
+
+        LOAD    RD, 000A       ; RD <- 10
+        CALL    FIND_IT        ; Call find it to set *RB (number of 10s)
+        ADD     RB, 0030       ; add 0x0030 for ASCII conversion
+        STORE   RB, COUNT_TEN       ; store
+
+        ; 1's left
+        ADD     RE, 0030       ; add 0x0030 for ASCII conversion
+        STORE   RE, COUNT_ONE       ; store
+
+
+        RETURN
+
+FIND_IT
+        LOAD    RB, 0000
+
+SUBTRACT
+        SUB     RE, RD
+        JUMPC   RESTORE_LAST
+        ADD     RB, 0001
+        JUMP    SUBTRACT
+
+RESTORE_LAST
+        ADD     RE, RD
+        RETURN
+
+initialize_banner
+        LOAD    TEMP, ASCII_DASH
+x50     STORE   TEMP, POINTER
+        ADD     POINTER, 0001       ; POINTER++
+        ADD     CHAR_COUNT, 0001    ; COUNT++
+        COMP    CHAR_COUNT, 0031    ; count == 49?
+        JUMPC   x50
+        LOAD    CHAR_COUNT, 0000
+
+        COMP    POINTER, 0064
+        JUMPNC  finish_banner
+
+        LOAD    TEMP, ASCII_CR
+        STORE   TEMP, POINTER       ; 50
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_LF
+        STORE   TEMP, POINTER       ; 51
+        ADD     POINTER, 0001
+
+        ; 5 spaces
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 52
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 53
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 54
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 55
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 56
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 57
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 58
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 59
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 60
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 61
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 62
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 63
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 64
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 65
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 66
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 67
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 68
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_CR
+        STORE   TEMP, POINTER       ; 69
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_LF
+        STORE   TEMP, POINTER       ; 70
+        ADD     POINTER, 0001
+
+        ; 5 spaces
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 71
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 72
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 73
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 74
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 75
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_C
+        STORE   TEMP, POINTER       ; 76
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_E
+        STORE   TEMP, POINTER       ; 77
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_C
+        STORE   TEMP, POINTER       ; 78
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_S
+        STORE   TEMP, POINTER       ; 79
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 80
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_4
+        STORE   TEMP, POINTER       ; 81
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_6
+        STORE   TEMP, POINTER       ; 82
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_0
+        STORE   TEMP, POINTER       ; 83
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_CR
+        STORE   TEMP, POINTER       ; 84
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_LF
+        STORE   TEMP, POINTER       ; 85
+        ADD     POINTER, 0001
+
+        ; 5 spaces
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 86
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 87
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 88
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 89
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 90
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_F
+        STORE   TEMP, POINTER       ; 91
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_U
+        STORE   TEMP, POINTER       ; 92
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_L
+        STORE   TEMP, POINTER       ; 93
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_L
+        STORE   TEMP, POINTER       ; 94
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP
+        STORE   TEMP, POINTER       ; 95
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_U
+        STORE   TEMP, POINTER       ; 96
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_A
+        STORE   TEMP, POINTER       ; 97
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_R
+        STORE   TEMP, POINTER       ; 98
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_T
+        STORE   TEMP, POINTER       ; 99
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_CR
+        STORE   TEMP, POINTER       ; 100
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_LF
+        STORE   TEMP, POINTER       ; 101
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_DASH    ; 150
+        JUMP    x50
+
+finish_banner
+
+        LOAD    TEMP, ASCII_CR
+        STORE   TEMP, POINTER       ; 151
+        ADD     POINTER, 0001
+        LOAD    TEMP, ASCII_LF      ; 152
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    CHAR_COUNT, 0000
+
+        RETURN
+
+        ; Enter a key
+initialize_prompt
+
+        LOAD    TEMP, ASCII_E       ; 154
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_N       ; 155
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_T       ; 156
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_E       ; 157
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_R       ; 158
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP      ; 159
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_A       ; 160
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP      ; 161
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_K       ; 162
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_E       ; 163
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_Y       ; 164
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_COL     ; 165
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        RETURN
+
+initialize_hometown
+
+        LOAD    TEMP, ASCII_M       ; 164
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_Y       ; 165
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP      ; 166
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_H       ; 167
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_O       ; 168
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_M       ; 169
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_E       ; 170
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_T       ; 171
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_O       ; 172
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_W       ; 173
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_N       ; 174
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP      ; 175
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_I       ; 176
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_S       ; 177
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP      ; 178
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_C       ; 179
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_O       ; 180
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_S       ; 181
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_T       ; 182
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+	LOAD    TEMP, ASCII_A       ; 183
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+	LOAD    TEMP, ASCII_SP      ; 184
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+	LOAD    TEMP, ASCII_M       ; 185
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+	LOAD    TEMP, ASCII_E       ; 186
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+	LOAD    TEMP, ASCII_S       ; 187
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+	LOAD    TEMP, ASCII_A       ; 188
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_comma   ; 189
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP      ; 190
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_C       ; 191
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_A       ; 192
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_CR      ; 193
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_LF      ; 194
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        RETURN
+
+initialize_backspace
+
+        LOAD    TEMP, ASCII_BS      ; 1995
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_SP      ; 196
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_BS      ; 197
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        RETURN
+
+initialize_crlf
+
+        LOAD    TEMP, ASCII_CR      ; 198
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        LOAD    TEMP, ASCII_LF      ; 199
+        STORE   TEMP, POINTER
+        ADD     POINTER, 0001
+
+        RETURN
+
+GOT_TXRDY
+        COMP    CASE, 0000          ; if the case is 0, then return
+        RETURNZ
+
+        FETCH   TEMP, POINTER       ; fetch what's pointed to by the pointer
+        OUTPUT  TEMP, 0000          ; output the data
+        ADD     POINTER 0001        ; increment the pointer
+
+        COMP    CASE, 0001          ; case 1 -> display the banner
+        JUMPZ   PRINT_BANNER
+
+        COMP    CASE, 0002          ; case 2 -> display the prompt
+        JUMPZ   PRINT_PROMPT
+
+        COMP    CASE, 0003
+        JUMPZ   PRINT_HOMETOWN      ; case 3 -> display the hometown
+
+        COMP    CASE, 0004          ; case 4 -> display the bs (bs sp bs)
+        JUMPZ   PRINT_BS
+
+        COMP    CASE, 0005          ; case 5 -> display the crlf
+        JUMPZ   PRINT_CRLF
+
+        COMP    CASE, 0006          ; case 6 -> display the count
+        JUMPZ   PRINT_COUNT
+
+        RETURN
+
+PRINT_BS
+
+        COMP    POINTER, end_bs
+        RETURNC
+        LOAD    CASE, 0000
+        RETURN
+
+
+PRINT_BANNER
+
+        COMP        POINTER, end_banner
+        RETURNC
+        LOAD        CASE, 0002      ; print prompt after
+        RETURN
+
+PRINT_PROMPT
+
+        COMP        POINTER, end_prompt
+        RETURNC
+        LOAD        CASE, 0000
+        RETURN
+
+PRINT_HOMETOWN
+
+        COMP        POINTER, end_hometown
+        RETURNC
+        LOAD        POINTER, start_prompt
+        LOAD        CASE, 0002
+        RETURN
+
+PRINT_CRLF
+
+        COMP        POINTER, end_crlf
+        RETURNC
+        LOAD        POINTER, start_prompt
+        LOAD        CASE, 0002  ; print prompt after
+        RETURN
+
+PRINT_COUNT
+
+        COMP    POINTER, COUNT_END
+        RETURNC
+        LOAD    POINTER, start_crlf
+        LOAD    CASE, 0005
+        RETURN
+
+GOT_RXRDY
+        COMP        CASE, 0000     ; z if its true
+        RETURNNZ                   ; return if no z
+        ; i.e. only enter this function if the user is inputted
+        ; chars
+        ; based on those chars, set the case and the pointer
+
+        INPUT       DATA, 0000
+        COMP        DATA, 0000 ; comp to null
+        RETURNZ
+
+        COMP        DATA, ASCII_aster
+        JUMPZ       SET_HOMETOWN
+
+        COMP        DATA, ASCII_BS
+        JUMPZ       SET_BS
+
+        COMP        DATA, ASCII_CR
+        JUMPZ       SET_CRLF
+
+        COMP        DATA, ASCII_AT
+        JUMPZ       SET_AT
+
+        ; This last condition is used for echoing
+        ADD         CHAR_COUNT, 0001
+        OUTPUT      DATA, 0000
+        COMP        CHAR_COUNT, forty
+        JUMPZ       SET_CRLF
+        RETURN
+
+
+SET_HOMETOWN
+        LOAD        CASE, 0003
+        LOAD        POINTER, start_hometown
+        LOAD        TEMP, ASCII_null
+        OUTPUT      TEMP, 0000
+        LOAD        CHAR_COUNT, 0000
+        RETURN
+
+
+SET_BS
+        COMP        CHAR_COUNT, 0000
+        RETURNZ
+        LOAD        CASE, 0004
+        LOAD        POINTER, start_bs
+        LOAD        TEMP, ASCII_null
+        OUTPUT      TEMP, 0000
+        SUB         CHAR_COUNT, 0001
+        RETURN
+
+
+SET_CRLF
+
+        LOAD        CASE, 0005
+        LOAD        POINTER, start_crlf
+        LOAD        TEMP, ASCII_null
+        OUTPUT      TEMP, 0000
+        LOAD        CHAR_COUNT, 0000
+        RETURN
+
+SET_AT
+        CALL        BINARY_TO_ASCII
+        LOAD        CASE, 0006
+        LOAD        POINTER, COUNT_BEGIN
+        LOAD        TEMP, ASCII_null
+        OUTPUT      TEMP, 0000
+        LOAD        CHAR_COUNT, 0000
+        RETURN
+
+
+        ADDRESS 0FFE
+        JUMP    ISR
+        END
